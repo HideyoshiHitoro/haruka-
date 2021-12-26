@@ -4,7 +4,6 @@ const cloudDBAdapter = require('./lib/cloudDBAdapter')
 const { generate } = require('qrcode-terminal')
 const syntaxerror = require('syntax-error')
 const simple = require('./lib/simple')
-//  const logs = require('./lib/logs')
 const { promisify } = require('util')
 const yargs = require('yargs/yargs')
 const Readline = require('readline')
@@ -19,7 +18,6 @@ try {
   low = require('./lib/lowdb')
 }
 const { Low, JSONFile } = low
-const mongoDB = require('./lib/mongoDB')
 
 const rl = Readline.createInterface(process.stdin, process.stdout)
 const WAConnection = simple.WAConnection(_WAConnection)
@@ -38,30 +36,12 @@ global.prefix = new RegExp('^[' + (opts['prefix'] || '‎xzXZ/!#$%+£¢€¥^°=
 global.db = new Low(
   /https?:\/\//.test(opts['db'] || '') ?
     new cloudDBAdapter(opts['db']) :
-    /mongodb/.test(opts['db']) ?
-      new mongoDB(opts['db']) :
-      new JSONFile(`${opts._[0] ? opts._[0] + '_' : ''}database.json`)
+    new JSONFile(`${opts._[0] ? opts._[0] + '_' : ''}database.json`)
 )
 global.DATABASE = global.db // Backwards Compatibility
-global.loadDatabase = async function loadDatabase() {
-  if (global.db.READ) return new Promise((resolve) => setInterval(function () {(!global.db.READ ? (clearInterval(this), resolve(global.db.data == null ? global.loadDatabase() : global.db.data)) : null)}, 0.5 * 1000))
-  if (global.db.data !== null) return
-  global.db.READ = true
-  await global.db.read()
-  global.db.READ = false
-  global.db.data = {
-    users: {},
-    chats: {},
-    stats: {},
-    msgs: {},
-    sticker: {},
-    ...(global.db.data || {})
-  }
-  global.db.chain = _.chain(global.db.data)
-}
-loadDatabase()
 
 global.conn = new WAConnection()
+conn.version = [2, 2140, 12]
 let authFile = `${opts._[0] || 'session'}.data.json`
 if (fs.existsSync(authFile)) conn.loadAuthInfo(authFile)
 if (opts['trace']) conn.logger.level = 'trace'
@@ -69,15 +49,9 @@ if (opts['debug']) conn.logger.level = 'debug'
 if (opts['big-qr'] || opts['server']) conn.on('qr', qr => generate(qr, { small: false }))
 if (!opts['test']) setInterval(async () => {
   await global.db.write()
-}, 10 * 1000) // Save every minute
+}, 60 * 1000) // Save every minute
 if (opts['server']) require('./server')(global.conn, PORT)
 
-conn.user = {
-  jid: '',
-  name: '',
-  phone: {},
-  ...(conn.user || {})
-}
 if (opts['test']) {
   conn.user = {
     jid: '2219191@s.whatsapp.net',
@@ -123,7 +97,17 @@ if (opts['test']) {
     process.send(line.trim())
   })
   conn.connect().then(async () => {
-    if (global.db.data == null) await loadDatabase()
+    await global.db.read()
+    global.db.data = {
+      users: {},
+      chats: {},
+      stats: {},
+      msgs: {},
+      sticker: {},
+      settings: {},
+      ...(global.db.data || {})
+    }
+    global.db.chain = _.chain(global.db.data)
     fs.writeFileSync(authFile, JSON.stringify(conn.base64EncodedAuthInfo(), null, '\t'))
     global.timestamp.connect = new Date
   })
@@ -142,7 +126,7 @@ global.reloadHandler = function () {
     conn.off('CB:action,,call', conn.onCall)
   }
   conn.welcome = 'Hai, @user!\nSelamat datang di grup @subject\n\n@desc'
-  conn.bye = '@user keluar'
+  conn.bye = 'Selamat tinggal @user'
   conn.spromote = '@user sekarang admin'
   conn.sdemote = '@user sekarang bukan admin'
   conn.handler = handler.handler
@@ -188,6 +172,7 @@ for (let filename of fs.readdirSync(pluginFolder).filter(pluginFilter)) {
     delete global.plugins[filename]
   }
 }
+console.log(Object.keys(global.plugins))
 global.reload = (_event, filename) => {
   if (pluginFilter(filename)) {
     let dir = path.join(pluginFolder, filename)
@@ -238,6 +223,7 @@ async function _quickTest() {
     ])
   }))
   let [ffmpeg, ffprobe, ffmpegWebp, convert, magick, gm] = test
+  console.log(test)
   let s = global.support = {
     ffmpeg,
     ffprobe,
@@ -255,5 +241,5 @@ async function _quickTest() {
 }
 
 _quickTest()
-  .then(() => conn.logger.info('Quick Test Done'))
+  .then(() => conn.logger.info('Pengetesan Cepat Selesai'))
   .catch(console.error)
