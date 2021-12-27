@@ -1,3 +1,4 @@
+/*
 let { GroupSettingChange } = require('@adiwajshing/baileys')
 let handler = m => m
 
@@ -31,3 +32,4 @@ ketik *#astagfirullah* atau *#maaf* untuk mengurangi warning
     return !0
 }
 module.exports = handler
+*/
